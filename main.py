@@ -1,4 +1,4 @@
-import logging as LOG
+from loguru import logger as LOG
 import json
 import os
 
@@ -17,7 +17,6 @@ from db.sqllite import (
     get_tasks
 )
 
-LOG.basicConfig()
 database_conn = create_connection('./db/local.db')
 create_table(database_conn)
 
@@ -35,12 +34,7 @@ class Answer(BaseModel):
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins = [
-        "http://localhost",
-        "http://localhost:5173",
-        "http://127.0.0.1",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins = ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,8 +56,11 @@ async def authorize(auth: AuthorizationPacket):
 
 
 @app.get('/getTask')
-async def getTask(token: str):
-    resp = r.get(f'{AI_DEVS_API_ULR}/task/{token}')
+async def getTask(token: str, question: str = None):
+    if question:
+        resp = r.post(f'{AI_DEVS_API_ULR}/task/{token}', data={'question': question})
+    else:
+        resp = r.get(f'{AI_DEVS_API_ULR}/task/{token}')
     return resp.json()
 
 
@@ -74,12 +71,13 @@ async def sendAnswer(answer: Answer):
             json_output = json.loads(answer.body)
         else:
             json_output = answer.body
-        LOG.error(json_output)
+        LOG.info(json_output)
     except SyntaxError:
         return Response(content="Incorrect json", status_code=400)
     resp = r.post(f'{AI_DEVS_API_ULR}/answer/{answer.token}', json={'answer': json_output})
     if (resp.status_code == 200):
         update_task(database_conn, (True, answer.taskName,)) 
+    LOG.info(resp.request.__dict__)
     return resp.json()
 
 @app.get('/tasks')
