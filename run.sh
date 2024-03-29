@@ -1,0 +1,1 @@
+TASK_API_KEY="$1" OPEN_AI_API_KEY="$2" uvicorn main:app --host 0.0.0.0 --port 3001 --reload --log-level debug

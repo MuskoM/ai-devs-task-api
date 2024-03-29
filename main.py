@@ -1,9 +1,11 @@
 from loguru import logger as LOG
 import json
 import os
+import re
 
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from openai import OpenAI
 from pydantic import BaseModel
 import requests as r
 import uvicorn
@@ -22,6 +24,7 @@ create_table(database_conn)
 
 AI_DEVS_API_ULR = "https://tasks.aidevs.pl"
 AI_DEVS_API_KEY = os.environ['TASK_API_KEY']
+OPEN_AI_API_KEY: str = os.environ['OPEN_AI_API_KEY']
 
 class AuthorizationPacket(BaseModel):
     taskName: str
@@ -83,6 +86,37 @@ async def sendAnswer(answer: Answer):
 @app.get('/tasks')
 async def getTasks():
     return [{'name': t[1], 'isComplete': bool(t[2])} for t in get_tasks(database_conn).fetchall()]
+
+def transcribe(client: OpenAI, file_path: str) -> str:
+    audio_file = open(file_path, "rb")
+    transcription = client.audio.transcriptions.create(
+        model='whisper-1',
+        file=audio_file,
+    )
+    return transcription.text
+
+@app.get('/whisper')
+async def get_whisper():
+    resp = r.post(f'{AI_DEVS_API_ULR}/token/whisper',
+                  json={'apikey': AI_DEVS_API_KEY})
+
+    resp = r.get(f'{AI_DEVS_API_ULR}/task/{resp.json()["token"]}')
+    message: str = resp.json()['msg']
+    audio_link: str = re.findall(r'https://tasks.*\.mp3', message)[0]
+
+    client = OpenAI(api_key=OPEN_AI_API_KEY)
+    audio_file_path = 'assets/audio.mp3'
+    try:
+        transcription = transcribe(client, audio_file_path)
+        return Response(transcription)
+    except FileNotFoundError:
+        with open(audio_file_path,'wb+') as audio_file:
+            response = r.get(audio_link)
+            audio_file.write(response.content)
+        return Response(transcribe(client, audio_file_path))
+
+    
+
 
 if __name__ == '__main__':
     uvicorn.run(app, host='0.0.0.0', port=3001, reload=True)
