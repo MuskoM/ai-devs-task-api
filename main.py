@@ -24,7 +24,6 @@ create_table(database_conn)
 
 AI_DEVS_API_ULR = "https://tasks.aidevs.pl"
 AI_DEVS_API_KEY = os.environ['TASK_API_KEY']
-OPEN_AI_API_KEY: str = os.environ['OPEN_AI_API_KEY']
 
 class AuthorizationPacket(BaseModel):
     taskName: str
@@ -104,7 +103,7 @@ async def get_whisper():
     message: str = resp.json()['msg']
     audio_link: str = re.findall(r'https://tasks.*\.mp3', message)[0]
 
-    client = OpenAI(api_key=OPEN_AI_API_KEY)
+    client = OpenAI()
     audio_file_path = 'assets/audio.mp3'
     try:
         transcription = transcribe(client, audio_file_path)
